@@ -1,5 +1,5 @@
 import os
-import Comunit
+import comunits
 import time
 
 path_default = 'E:\\Mzitu'
@@ -15,7 +15,7 @@ def start_download(pics, url_pics, num_start, url_page, path_page):
     """
 
     # 从图集首页获取 图片总数
-    soup = Comunit.send_requests(url_pics, url_page, proxy)
+    soup = comunits.send_requests(url_pics, url_page, proxy)
     nums = soup.select('.pagenavi > a')[-2].text
     nums = int(nums)
     print("正在下载：{0}".format(pics))
@@ -35,11 +35,11 @@ def start_download(pics, url_pics, num_start, url_page, path_page):
                 referer_show = url_pics + '/' + str(num-1)
 
             # 获取图片下载地址
-            soup = Comunit.send_requests(url_img_show, referer_show, proxy)
+            soup = comunits.send_requests(url_img_show, referer_show, proxy)
             img = soup.select('.main-image>p>a>img')
             url_img = img[0].attrs['src']
 
-        response = Comunit.send_requests(url_img, url_img_show, proxy, need="response")
+        response = comunits.send_requests(url_img, url_img_show, proxy, need="response")
         if num == nums:
             path_img = path_page + "\\" + pics + "_" + str(num) + "_L.jpg"
         else:
@@ -47,7 +47,7 @@ def start_download(pics, url_pics, num_start, url_page, path_page):
 
         with open(path_img, 'wb') as f:
             f.write(response.content)
-        Comunit.show_bar(num, nums)  # 进度条
+        comunits.show_bar(num, nums)  # 进度条
         time.sleep(0.3)
 
 
@@ -68,7 +68,7 @@ def get_pics(page):
         referer_page = url_home + '/' + str(page - 1) + '/'
 
     # 返回 页所有图集的字典—— 名字：链接
-    soup = Comunit.send_requests(url_page, referer_page, proxy)
+    soup = comunits.send_requests(url_page, referer_page, proxy)
     items = soup.select('.postlist li')
     pics_dic = {}
     for item in items:
@@ -94,7 +94,7 @@ def main():
     if not(os.path.exists(path)):
         os.mkdir(path)
 
-    page_list = Comunit.deal_input_num(page_list)         # 页码格式化处理 返回字符
+    page_list = comunits.deal_input_num(page_list)         # 页码格式化处理 返回字符
     page_list = [int(i) for i in page_list]               #  页码处理成 int型
     for page in page_list:
         print("{1}准备下载第 {0} 页{1}".format(page,"*"*35))
@@ -102,11 +102,11 @@ def main():
         if not (os.path.exists(path_page)):
             os.mkdir(path_page)
 
-        name_done_list, name_ing_dic = Comunit.check_local(path_page)
+        name_done_list, name_ing_dic = comunits.check_local(path_page)
         # 页所有图集的字典 {名：url}
         pics_dic, url_page = get_pics(page)
         # 需要下载图集的字典{名：数}
-        local_dic, pics_dic = Comunit.is_download(pics_dic, name_done_list, name_ing_dic)
+        local_dic, pics_dic = comunits.is_download(pics_dic, name_done_list, name_ing_dic)
 
         pics_list = list(pics_dic)
         for pics in pics_list:
