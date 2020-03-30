@@ -1,5 +1,5 @@
 # 自定义模块
-import comunit
+import Comunit
 import os
 
 proxy = {'https': 'https://127.0.0.1:1080'}
@@ -17,7 +17,7 @@ def get_pics(year, month):
     url_month = url_ck + "/" + "?s={0}-{1}".format(month, year)
     href = []
     name = []
-    soup = comunit.send_requests(url_month, url_ck, proxy)
+    soup = Comunit.send_requests(url_month, url_ck, proxy)
     soup = soup.select(".gal_list a")
     for tag in soup:
         t = tag['href']
@@ -40,7 +40,7 @@ def start_download(local_dic, pics_dic, path_month):
         url_pics = pics_dic[pics]           # 准备下载图片的url
         num_start = local_dic[pics]
 
-        soup = comunit.send_requests(url_pics, url_ck, proxy)
+        soup = Comunit.send_requests(url_pics, url_ck, proxy)
         soup = soup.select(".gal_list a[target]")
         url_img_list = []
         for img in soup:
@@ -55,11 +55,11 @@ def start_download(local_dic, pics_dic, path_month):
                 path_img = path_month + "\\" + pics + "_" + str(n) + "_" + "L.jpg"
             else:
                 path_img = path_month + "\\" + pics + "_" + str(n) + "_" + ".jpg"
-            response = comunit.send_requests(url, url_pics, proxy, need="response")
+            response = Comunit.send_requests(url, url_pics, proxy, need="response")
             with open(path_img, "wb") as f:
                 f.write(response.content)
                 f.close()
-            comunit.show_bar(n, ns)              # 进度条
+            Comunit.show_bar(n, ns)              # 进度条
 
 
 def main():
@@ -81,7 +81,7 @@ def main():
     if not os.path.exists(path):
         os.mkdir(path)
 
-    month_list = comunit.deal_input_num(month_list)    # 月份格式化处理
+    month_list = Comunit.deal_input_num(month_list)    # 月份格式化处理
 
     for month in month_list:    # 以月循环
         print("{2} 准备下载:{0}--{1} {2}".format(month, year, "*" * 35))
@@ -91,9 +91,9 @@ def main():
         if not os.path.exists(path_month):
             os.mkdir(path_month)
 
-        name_done_list, name_ing_dic = comunit.check_local(path_month)  # 本地自检
+        name_done_list, name_ing_dic = Comunit.check_local(path_month)  # 本地自检
         pics_dic = get_pics(year, month)      # 返回每月图集字典
-        local_dic, pics_dic = comunit.is_download(pics_dic, name_done_list, name_ing_dic)
+        local_dic, pics_dic = Comunit.is_download(pics_dic, name_done_list, name_ing_dic)
         start_download(local_dic, pics_dic, path_month)
 
         print("{2} 完成下载:{0}--{1} {2}".format(month, year, "*" * 35))

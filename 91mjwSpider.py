@@ -1,4 +1,4 @@
-import comunit
+import Comunit
 import re
 
 url_home = "https://91mjw.com"
@@ -75,14 +75,14 @@ def get_info(obj):
 def main():
 
 
-    obj = comunit.send_requests(url_epi, url_section, need="xpath")
+    obj = Comunit.send_requests(url_epi, url_section, need="xpath")
     # 每集地址
     # url_epi_dic = get_addr_epis(obj)
     # 下一个请求网址
     vid = get_info(obj)
     # 拼接下载地址
 
-    response = comunit.send_requests(vid, url_store, need="response")
+    response = Comunit.send_requests(vid, url_store, need="response")
     txt = response.text
     index = txt.find('/')
     txt = txt[index:]
@@ -93,7 +93,7 @@ def main():
     r = r.split('/')[0]
     url_last = l + "//" + r + txt
     print(url_last)
-    response1 = comunit.send_requests(url_last, url_store, need="response")
+    response1 = Comunit.send_requests(url_last, url_store, need="response")
     txt1 = response1.text()
     print(txt1)
 

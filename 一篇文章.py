@@ -1,10 +1,10 @@
 import re
-import comunit
+import Comunit
 
 url = "https://mp.weixin.qq.com/s/s5ow4FoOKDS_DA6sPY1ysA"
 
 # r = ComUnit.send_requests(url, url, need="response")
-tree = comunit.send_requests(url, url, need="xpath")
+tree = Comunit.send_requests(url, url, need="xpath")
 ret = tree.xpath("//div[@id='js_content']/p/text()")
 ret.pop(0)
 ret.pop(-1)
@@ -21,7 +21,7 @@ for i in ret:
 
 for i in a:
     try:
-        r = comunit.send_requests(i, i, need="response", mode="empty")
+        r = Comunit.send_requests(i, i, need="response", mode="empty")
     except:
         continue
     if r.status_code is 200:
