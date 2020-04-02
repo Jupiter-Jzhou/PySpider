@@ -2,10 +2,11 @@
 import comunits
 import os
 
-proxy = {'https': 'https://127.0.0.1:1080'}
+proxy = {'https': 'https://127.0.0.1:10809'}
 url_ck = 'https://www.kindgirls.com/photo-archive'
 url_home = 'https://www.kindgirls.com/'
 path_default = "E:\\kindgirls"
+
 
 
 def get_pics(year, month):
@@ -17,7 +18,7 @@ def get_pics(year, month):
     url_month = url_ck + "/" + "?s={0}-{1}".format(month, year)
     href = []
     name = []
-    soup = comunits.send_requests(url_month, url_ck, proxy)
+    soup = comunits.send_requests(url_month, referer=url_ck, proxy=proxy)
     soup = soup.select(".gal_list a")
     for tag in soup:
         t = tag['href']
@@ -40,7 +41,7 @@ def start_download(local_dic, pics_dic, path_month):
         url_pics = pics_dic[pics]           # 准备下载图片的url
         num_start = local_dic[pics]
 
-        soup = comunits.send_requests(url_pics, url_ck, proxy)
+        soup = comunits.send_requests(url_pics, referer=url_ck, proxy=proxy)
         soup = soup.select(".gal_list a[target]")
         url_img_list = []
         for img in soup:
@@ -55,7 +56,7 @@ def start_download(local_dic, pics_dic, path_month):
                 path_img = path_month + "\\" + pics + "_" + str(n) + "_" + "L.jpg"
             else:
                 path_img = path_month + "\\" + pics + "_" + str(n) + "_" + ".jpg"
-            response = comunits.send_requests(url, url_pics, proxy, need="response")
+            response = comunits.send_requests(url, referer=url_pics, proxy=proxy, need="response")
             with open(path_img, "wb") as f:
                 f.write(response.content)
                 f.close()

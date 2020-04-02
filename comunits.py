@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 from collections import Counter
 from time import sleep
 from lxml import etree
+import urllib.request as request
 
 
 def get_ip():
@@ -27,7 +28,6 @@ def check_local(path, *, mode=None, **kwargs):
         b = []
         if os.path.isfile(path_video):                     # 返回布尔值
             index_ts = False
-
         else:
             ts_list = os.listdir(path)
             index_ts = []
@@ -39,13 +39,17 @@ def check_local(path, *, mode=None, **kwargs):
                     index_ts.append(int(index))
                 else:
                     print("{0}提取失败".format(ts))
-            # 整理index_ts 排序 递增
+            # 整理index_ts 排序 递增          index_ts: 本地所有ts列表 数字
             index_ts.sort()
+            # 寻找离散的未下ts
             for i in range(len(index_ts)-1):
-                i1 = index_ts[i]+1
+                i1 = index_ts[i]
                 i2 = index_ts[i+1]
-                if i1 != i2:
-                    lst = [a for a in range(i1, i2)]
+                if i == 0 and i1 != 0:                       # 比如只有第一个文件0未下的情况
+                    lst = [a for a in range(i1)]
+                    b = b + lst
+                elif i1+1 != i2:
+                    lst = [a for a in range(i1+1, i2)]
                     b = b + lst
         return index_ts, b
 
@@ -115,12 +119,17 @@ def send_requests(url, *, method="get", need="soup", mode="loop",
     global response    # return 不能返回比他缩进的变量，故将此变量全局化
     if proxy is None:
         proxy = {}
+
+    # request增加代理设置 翻墙时候
+    opener = request.build_opener(request.ProxyHandler(proxy))
+    request.install_opener(opener)
+
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
         'Referer': referer,
         'origin': origin
               }
-
+    # print(proxy)
     if mode is "loop":
         while 1:
             try:

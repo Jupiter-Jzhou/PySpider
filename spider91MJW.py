@@ -4,6 +4,7 @@ from urllib import parse
 from multiprocessing import Pool
 from lxml import etree
 import os
+from time import sleep
 
 
 # 网站主页
@@ -82,7 +83,7 @@ def get_m3u8a(url_play):
 
 def get_ts(url_m3u8a):
     """
-    return: 第一个ts 和 ts总数  用于构造ts生成器
+    return: url_ts的模板 和 ts总数  用于构造ts生成器
     """
 
     # 找到第二个m3u8地址 url_m3u8b
@@ -99,66 +100,54 @@ def get_ts(url_m3u8a):
     # print(ts_list[:3], len(ts_list), sep="\n")
     # 制作ts模板
     ts = ts_list[-1]  # 用第一个[0]会有莫名其妙的错误
-    ts_pat = ts.replace(ts[-9:-3], "{}")
+    ts_pat = ts.replace(ts[-9:-3], "{0}")
+    ts_pat = parse.urljoin(url_m3u8b, ts_pat)
 
-    return ts_pat, len(ts_list), url_m3u8b
+    return ts_pat, len(ts_list)
 
 
-def download_ts(url_ts, ts, path_ts_dir):
+def download_ts(url_ts, path_ts):
     """ 下载ts"""
-
-    path_ts = os.path.join(path_ts_dir, ts)
+    print("jjjj")
     ts_stream = comunits.send_requests(url_ts, origin=url_origin, need="response")
     with open(path_ts, "wb") as f:
         f.write(ts_stream.content)
         f.close()
+    print("oooo")
 
 
-def create_pool(ts_download, ts_reload, ts_pat, path_ts_dir, url_m3u8b):
-    # 动态进程数
-    ts_start = ts_download[0]
-    ts_end = ts_download[-1]
-    n = int((ts_end - ts_start) * 0.04) + 1
-    pool = Pool(n)
+def get_download_console(ts_download, ts_pat, path_ts_dir):
 
-    try:
-        # ts生成器
-        for i in range(ts_start, ts_end):
-            # n为需要添加0的个数
-            i = str(i)
-            n = 6 - len(i)
-            index = "0" * n + i
-            ts = ts_pat.format(index)
-            url_ts = parse.urljoin(url_m3u8b, ts)
-            # 开启异步任务
-            pool.apply_async(download_ts, (url_ts, ts, path_ts_dir))
-    finally:
-        pool.close()
-        pool.join()
-    if len(ts_reload) != 0:
-        n = int((len(ts_reload)) * 0.04) + 1
+    print("下载ts")
+    if len(ts_download) != 0:
+        # 动态进程数
+        n = int((len(ts_download)) * 0.04) + 1
         pool = Pool(n)
         try:
             # ts生成器
             print("补下ts")
-            for i in ts_reload:
+            for i in ts_download:
                 # n为需要添加0的个数
                 i = str(i)
                 n = 6 - len(i)
                 index = "0" * n + i
-                ts = ts_pat.format(index)
-                url_ts = parse.urljoin(url_m3u8b, ts)
+                url_ts = ts_pat.format(index)
+                # ts文件路径
+                path_ts = os.path.join(path_ts_dir, url_ts.rsplit('/', 1)[1])
                 # 开启异步任务
-                pool.apply_async(download_ts, (url_ts, ts, path_ts_dir))
+                pool.apply_async(download_ts, (url_ts, path_ts))
         finally:
             pool.close()
             pool.join()
+    else:
+        print("ts已经下完了")
 
 
 def merge_ts(path_ts_dir, path_episode, ts_total, name_episode):
 
     # 判断ts文件是否下全了
     if len(os.listdir(path_ts_dir)) == ts_total:
+        print("{1}开始合并：{0}{1}".format(name_episode, "*" * 25))
         # 合并ts
         merge = r'copy /b "{0}\*.ts" "{1}"'.format(path_ts_dir, path_episode)
         os.system(merge)
@@ -166,11 +155,15 @@ def merge_ts(path_ts_dir, path_episode, ts_total, name_episode):
             # 删除ts
             delete = r'rd /S/Q "{0}"'.format(path_ts_dir)
             os.system(delete)
-            print("\r合并成功：{}".format(name_episode))
+            sleep(0.5)                   # 删除文件夹有一定时间
+            if not os.path.exists(path_ts_dir):
+                print("{1}合并成功：{0}{1}".format(name_episode, "*" * 25))
+            else:
+                print("删除失败")
         else:
-            print("\rts文件合并失败")
+            print("合并失败")
     else:
-        print("\rts文件未下载完全")
+        print("ts文件未下载完全")
 
 
 def get_ready():
@@ -224,43 +217,47 @@ def main():
         # download_sets_list = ["第" + "0" + str(i) + "集" if len(str(i)) == 1 else "第" + str(i) + "集"
         #                       for i in range(1, len(episode_dic)+1)]
         download_sets_list = [i for i in range(1, len(episode_dic) + 1)]
+
     # 每集循环下载
     for i in download_sets_list:        # i:第几集； 按用户输入的集数来下载
         name_episode = str(i) + "__" + name_section
         path_ts_dir = os.path.join(path_download, name_section, name_episode)
         file_episode = name_episode + ".mp4"
         path_episode = os.path.join(path_download, name_section, file_episode)
+        if not (os.path.exists(path_episode) or os.path.exists(path_ts_dir)):
+            os.makedirs(path_ts_dir)
 
         # 本地自检 ts_local列表 （int, 与ts_total比对）
-        ts_local, ts_reload = comunits.check_local(path_ts_dir, mode="m3u8", path_episode=path_episode)
-
-        # 影片已经合成好，ts_local为FALSE
-        if ts_local is False:
-            print("{}已经下载,可直接观看".format(name_episode))
+        ts_local, ts_dis = comunits.check_local(path_ts_dir, mode="m3u8", path_episode=path_episode)
+        if ts_local is False:                     # 影片已经合成好，ts_local为FALSE
+            print("{0}已经下载,可直接观看".format(name_episode))
             continue
-        else:
-            if not os.path.exists(path_ts_dir):
-                os.makedirs(path_ts_dir)
 
-        print("{1}正在下载：{0}{1}".format(name_episode, "*" * 25))
+        # 解析m3u8
+        print("{1}解析影片索引中：{0}{1}".format(name_episode, "*" * 25))
         url_play = url_home + "/vplay/" + episode_dic[i] + ".html"
-        print(url_play)
-        # 返回第一个m3u8地址
-        url_m3u8a = get_m3u8a(url_play)
-        # 返回ts下载地址的变化部分的模板 和 ts总数
-        ts_pat, ts_total, url_m3u8b = get_ts(url_m3u8a)
+        url_m3u8a = get_m3u8a(url_play)         # 返回第一个m3u8地址
+        ts_pat, ts_total = get_ts(url_m3u8a)   # 返回ts下载地址的模板 和 ts总数
 
         # 本地ts文件总数 = 服务器ts总数, 算下载完了
         # 本地ts文件总数 < 服务器ts总数,构造一个新的未下的ts列表，注意中间有不连续的也被查出
         ts_local_num = len(ts_local)
-        if ts_local_num < ts_total:
-            ts_download = [ts_local_num, ts_total]
-            create_pool(ts_download, ts_reload, ts_pat, path_ts_dir, url_m3u8b)
+        while ts_local_num < ts_total:          # 本地ts不够时
+            print("\r{1}开始下载ts流：{0}{1}".format(name_episode, "*" * 25))
+            ts_download = [i for i in range(ts_local_num, ts_total)]
+            for t in range(ts_local_num, ts_total):
+                if t in ts_local:
+                    ts_download.remove(t)          # 去除连续ts部分 重复下的部分
+            ts_download = ts_download + ts_dis    # 需要下载的ts总列表
+            get_download_console(ts_download, ts_pat, path_ts_dir)
+            # 再次本地自检
+            print("再次本地自检")
+            ts_local, ts_dis = comunits.check_local(path_ts_dir, mode="m3u8", path_episode=path_episode)
+            ts_local_num = len(ts_local)
+        print("{1}ts流已经下载完成：{0}{1}".format(name_episode, "*" * 25))
 
-        print("{1}完成下载：{0}{1}".format(name_episode, "*" * 25))
-        print("{1}开始合并：{0}{1}".format(name_episode, "*" * 25))
+        # 开始合并ts文件
         merge_ts(path_ts_dir, path_episode, ts_total, name_episode)
-
 
 
 if __name__ == '__main__':
