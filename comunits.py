@@ -135,17 +135,27 @@ def send_requests(url, *, method="get", need="soup", mode="loop",
               }
     # print(proxy)
     if mode is "loop":
+        verify = True
+        timeout = (13, 30)
         while 1:
+
             try:
-                response = requests.request(method, url, headers=headers, proxies=proxy, timeout=(13, 30))
+                response = requests.request(method, url, headers=headers, proxies=proxy, timeout=timeout
+                                            , verify=verify)
                 response.close()
-                while response.status_code != 200:
+                if response.status_code != 200:
                     print(response.status_code)
                     print("\r再次尝试连接", end='')
-                    response = requests.request(method, url, headers=headers, proxies=proxy, timeout=(13, 30))
+                    continue
                 break
             except requests.Timeout:
-                print("\r重新请求", end='')
+                print("\r请求超时", end='')
+                timeout = (13, 60)
+                continue
+            except requests.exceptions.SSLError:
+                print("\r关闭verify", end='')
+                verify = False
+                continue
 
     elif mode is "empty":
         response = requests.request(method, url, headers=headers, proxies=proxy, timeout=(13, 30))

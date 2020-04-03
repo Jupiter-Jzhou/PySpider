@@ -1,11 +1,11 @@
 import comunits
 import re
 from urllib import parse
-from multiprocessing import Pool
+from multiprocessing import Pool, freeze_support, Manager
 from lxml import etree
 import os
 from time import sleep
-from multiprocessing import freeze_support
+from tqdm import tqdm
 
 # 网站主页
 url_home = "https://91mjw.com"
@@ -140,39 +140,41 @@ def get_ts(url_m3u8):
     return ts_pat, ts_total, index_long
 
 
-def download_ts(url_ts, path_ts):
+def download_ts(url_ts, path_ts, d):
     """ 下载ts"""
-    print('\r', url_ts)
+    # sleep(0.5)
     ts_stream = comunits.send_requests(url_ts, origin=url_origin, need="response")
     with open(path_ts, "wb") as f:
         f.write(ts_stream.content)
         f.close()
-    print("\rok")
+    d[0] += 1
+    comunits.show_bar(d[0], d[1])
 
 
 def get_download_console(ts_download, ts_pat, index_long, path_ts_dir):
-    if len(ts_download) != 0:
-        # 动态进程数
-        n = int((len(ts_download)) * 0.04) + 1
-        pool = Pool(n)
-        print("进程数：", n)
-        try:
-            # ts生成器
-            for i in ts_download:  # ts_download列表 元素是 int
-                # n为需要添加0的个数
-                i = str(i)
-                n = index_long - len(i)
-                index = "0" * n + i
-                url_ts = ts_pat.format(index)
-                # ts文件路径
-                path_ts = os.path.join(path_ts_dir, url_ts.rsplit('/', 1)[1])
-                # 开启异步任务
-                pool.apply_async(download_ts, (url_ts, path_ts))
-        finally:
-            pool.close()
-            pool.join()
-    else:
-        print("ts已经下完了")
+
+    # 进程数
+    pool = Pool(30)
+    # 进程数据共享
+    m = Manager()
+    d = m.list()
+    d.extend([0, len(ts_download)])
+    try:
+        # ts生成器
+        for i in ts_download:  # ts_download列表 元素是 int
+            # n为需要添加0的个数
+            i = str(i)
+            n = index_long - len(i)
+            index = "0" * n + i
+            url_ts = ts_pat.format(index)
+            # ts文件路径
+            path_ts = os.path.join(path_ts_dir, url_ts.rsplit('/', 1)[1])
+            # 开启异步任务
+            pool.apply_async(download_ts, (url_ts, path_ts, d))
+    finally:
+        pool.close()
+        pool.join()
+
 
 
 def merge_ts(path_ts_dir, path_episode, ts_total, name_episode):
