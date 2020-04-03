@@ -6,7 +6,6 @@ from lxml import etree
 import os
 from time import sleep
 
-
 # 网站主页
 url_home = "https://91mjw.com"
 # 下载 M3U8 ts 时的请求头的origin
@@ -38,10 +37,11 @@ def get_info():
 
     # 每集url线索,第几集
     id_epis = tree.xpath('//a[@onclick="play(this)"]/@id')
+    key_epis = ["/vplay/" + i + ".html" for i in id_epis]
     name_epis = tree.xpath('//a[@onclick="play(this)"]/text()')
     name_epis = [int(re.findall("第(.*)集", i)[0]) for i in name_epis]
     # print(id_epis, name_epis, sep="\n")
-    episode_dic = dict(zip(name_epis, id_epis))
+    episode_dic_main = dict(zip(name_epis, key_epis))
 
     # 影片信息
     div = tree.xpath("//div[@class='video_info']")[0]
@@ -60,14 +60,14 @@ def get_info():
     introduce = tree.xpath('//p[@class="jianjie"]/span/text()')[0]
     # print(introduce)
 
-    return name_section, episode_dic, info_section, introduce
+    return name_section, episode_dic_main, info_section, introduce
 
 
 def get_m3u8(url_play):
-    """从播放页面找出第一个M3U8的url: vid"""
-
-    # script = script.xpath('string(.)')   效果同text()
-    # script类型 <class 'lxml.etree._ElementUnicodeResult'>
+    """从播放页面找出第一个M3U8的url: url_m3u8
+    几个播放源几个，几个m3u8
+    """
+    # 主线下的vid
     obj = comunits.send_requests(url_play, referer=url_info, need="xpath")
     script = obj.xpath('//section[@class="container"]/script[@type="text/javascript"]/text()')[0]
     # 提取vid
@@ -75,10 +75,19 @@ def get_m3u8(url_play):
     vid = vid[0].strip()
     vid = eval(vid).strip()
     # url解码
-    vid = parse.unquote(vid)
-    # print(vid)
+    url_m3u8 = parse.unquote(vid)
 
-    return vid
+    # 找到备用源和独家源的每集播放页的url
+    play_container = obj.xpath('//div[@id="playcontainer"]//section')
+    episode_dic_list = []                  # 其元素是每个源下的集数的字典{name:key}
+    for s in play_container[1:]:
+        name_epis = s.xpath('./a/text()')
+        name_epis = [int(re.findall("第(.*)集", i)[0]) for i in name_epis]
+        key_epis = s.xpath('./a/@href')
+        episode_dic = dict(zip(name_epis, key_epis))
+        episode_dic_list.append(episode_dic)
+
+    return url_m3u8, episode_dic_list
 
 
 def get_ts(url_m3u8):
@@ -88,11 +97,10 @@ def get_ts(url_m3u8):
     return: url_ts的模板 和 ts总数  用于构造ts生成器
     """
 
-    # 找到第二个m3u8地址 url_m3u8b
     m3u8 = comunits.send_requests(url_m3u8, origin=url_origin, need="response")
     m3u8 = m3u8.text
-    print(m3u8)
-    if ".m3u8" in m3u8:               # 说明有两个m3u8
+    print("第一个m3u8文件内容节选：", m3u8[:350], m3u8[-150:], sep='\n')
+    if ".m3u8" in m3u8:  # 说明有两个m3u8
         part = re.findall("\n(.+)m3u8", m3u8)
         m3u8b = part[0] + "m3u8"
         url_m3u8b = parse.urljoin(url_m3u8, m3u8b)
@@ -103,18 +111,19 @@ def get_ts(url_m3u8):
         ts = m3u8
         url_tspat = url_m3u8
     else:
-        ts = ""                       # 放报错
-        url_tspat = ""
-        print("m3u8文件出现新特征，请修改代码")
+        return "", 0, 0
+        # ts = ""                       # 放报错
+        # url_tspat = ""
+        # print("m3u8文件出现新特征，请修改代码")
 
     # 找头尾的两个ts
-    ts_start = re.search("(.*).ts", ts, re.X).group(1)   #re.X 忽略空格和#后的东西
+    ts_start = re.search("(.*).ts", ts, re.X).group(1)  # re.X 忽略空格和#后的东西
     ts_end = re.search("(.*).ts\n#EXT-X-ENDLIST", ts).group(1)
 
     # 找出ts是几位数的索引
     diff = 0
     length = len(ts_start)
-    for i in range(length-1):
+    for i in range(length - 1):
         if ts_start[i] != ts_end[i]:
             diff = i
             break
@@ -126,6 +135,7 @@ def get_ts(url_m3u8):
     # ts总数
     ts_total = ts_end[diff:]
     ts_total = int(ts_total)
+
     return ts_pat, ts_total, index_long
 
 
@@ -140,15 +150,14 @@ def download_ts(url_ts, path_ts):
 
 
 def get_download_console(ts_download, ts_pat, index_long, path_ts_dir):
-
     if len(ts_download) != 0:
         # 动态进程数
         n = int((len(ts_download)) * 0.04) + 1
         pool = Pool(n)
-        print("进程数：",n)
+        print("进程数：", n)
         try:
             # ts生成器
-            for i in ts_download:       # ts_download列表 元素是 int
+            for i in ts_download:  # ts_download列表 元素是 int
                 # n为需要添加0的个数
                 i = str(i)
                 n = index_long - len(i)
@@ -166,7 +175,6 @@ def get_download_console(ts_download, ts_pat, index_long, path_ts_dir):
 
 
 def merge_ts(path_ts_dir, path_episode, ts_total, name_episode):
-
     # 判断ts文件是否下全了
     if len(os.listdir(path_ts_dir)) == ts_total:
         print("{1}开始合并：{0}{1}".format(name_episode, "*" * 25))
@@ -177,7 +185,7 @@ def merge_ts(path_ts_dir, path_episode, ts_total, name_episode):
             # 删除ts
             delete = r'rd /S/Q "{0}"'.format(path_ts_dir)
             os.system(delete)
-            sleep(0.5)                   # 删除文件夹有一定时间
+            sleep(0.5)  # 删除文件夹有一定时间
             if not os.path.exists(path_ts_dir):
                 print("{1}合并成功：{0}{1}".format(name_episode, "*" * 25))
             else:
@@ -230,18 +238,17 @@ def get_ready():
 
 
 def main():
-
     # 交互界面,输出/输入必要信息
     download_sets_list = get_ready()
     # 从美剧详情页获取介绍和每集的url线索
-    name_section, episode_dic, info_section, introduce = get_info()
+    name_section, episode_dic_main, info_section, introduce = get_info()
     if not download_sets_list:
         # download_sets_list = ["第" + "0" + str(i) + "集" if len(str(i)) == 1 else "第" + str(i) + "集"
         #                       for i in range(1, len(episode_dic)+1)]
-        download_sets_list = [i for i in range(1, len(episode_dic) + 1)]
+        download_sets_list = [i for i in range(1, len(episode_dic_main) + 1)]
 
     # 每集循环下载
-    for i in download_sets_list:        # i:第几集； 按用户输入的集数来下载
+    for i in download_sets_list:  # i:第几集； 按用户输入的集数来下载
         name_episode = str(i) + "__" + name_section
         path_ts_dir = os.path.join(path_download, name_section, name_episode)
         file_episode = name_episode + ".mp4"
@@ -249,30 +256,42 @@ def main():
         if not (os.path.exists(path_episode) or os.path.exists(path_ts_dir)):
             os.makedirs(path_ts_dir)
 
-        # 解析m3u8
+        # 从详情页到播放页到第一个m3u8到..到ts
         print("{1}解析影片索引中：{0}{1}".format(name_episode, "*" * 25))
-        url_play = url_home + "/vplay/" + episode_dic[i] + ".html"      # 播放页有详情页来，
-        url_m3u8 = get_m3u8(url_play)         # 返回第一个m3u8地址
-        print(url_m3u8)
-        ts_pat, ts_total, index_long = get_ts(url_m3u8)
+        url_play_key = episode_dic_main[i]
+        flag_s = 0                                  # 换源头的标志位
+        while 1:
+            flag_s += 1
+            url_play = parse.urljoin(url_home, url_play_key)  # 播放页有详情页来，
+            url_m3u8, episode_dic_list = get_m3u8(url_play)  # 返回第一个m3u8地址 和 每个源下的episode_dic
+            ts_pat, ts_total, index_long = get_ts(url_m3u8)
+            if ts_pat == "" and flag_s-1 < len(episode_dic_list):
+                print("第{0}次换源".format(flag_s-1))
+                url_play_key = episode_dic_list[flag_s-1][i]             # 备用源
+                continue
+            else:
+                break
+        if ts_pat == "":
+            print("没有资源: 第{0}集--{1}".format(i, name_section))
+            continue
 
         # 本地自检 ts_local列表 （int, 与ts_total比对）
         ts_local, ts_dis = comunits.check_local(path_ts_dir, mode="m3u8", path_episode=path_episode
                                                 , index_long=index_long)
-        if ts_local is False:                     # 影片已经合成好，ts_local为FALSE
+        if ts_local is False:  # 影片已经合成好，ts_local为FALSE
             print("{0}已经下载,可直接观看".format(name_episode))
             continue
 
         # 本地ts文件总数 = 服务器ts总数, 算下载完了
         # 本地ts文件总数 < 服务器ts总数,构造一个新的未下的ts列表，注意中间有不连续的也被查出
         ts_local_num = len(ts_local)
-        while ts_local_num < ts_total:          # 本地ts不够时
+        while ts_local_num < ts_total:  # 本地ts不够时
             print("\r{1}开始下载ts流：{0}{1}".format(name_episode, "*" * 25))
             ts_download = [i for i in range(ts_local_num, ts_total)]
             for t in range(ts_local_num, ts_total):
                 if t in ts_local:
-                    ts_download.remove(t)          # 去除连续ts部分 重复下的部分
-            ts_download = ts_download + ts_dis    # 需要下载的ts总列表
+                    ts_download.remove(t)  # 去除连续ts部分 重复下的部分
+            ts_download = ts_download + ts_dis  # 需要下载的ts总列表
             print("ts总数:{0}; 需要下载数:{1}".format(ts_total, len(ts_download)))
             get_download_console(ts_download, ts_pat, index_long, path_ts_dir)
             # 再次本地自检
