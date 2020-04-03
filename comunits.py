@@ -16,7 +16,7 @@ def get_ip():
 def check_local(path, *, mode=None, **kwargs):
     """检查本地的已下载情况
     :mode "m3u8":
-                return: index_ts（列表）   ts文件索引号，int(去0),
+                return: ts_local（列表）   ts文件索引号，int(去0),
     :mode
     ，返回 已下完列表name_done 和 未下完字典name_ing
     一个图集的最后一张照片名含有特殊标记，利用此标记统计已下载的图集名
@@ -25,33 +25,37 @@ def check_local(path, *, mode=None, **kwargs):
 
     if mode is "m3u8":
         path_video = kwargs["path_episode"]           # 已经合成的影片名
+        long = kwargs["index_long"]                   # ts文件索引长度 int
         b = []
         if os.path.isfile(path_video):                     # 返回布尔值
-            index_ts = False
+            ts_local = False
         else:
             ts_list = os.listdir(path)
-            index_ts = []
-            for ts in ts_list:
-                index = re.findall(r"(\d{6}).ts", ts)        # 使用ts变量，因为file就是ts文件
-                if index is not []:
-                    index = index[0]    # 字符串：6个数字
-                    # 去零
-                    index_ts.append(int(index))
-                else:
-                    print("{0}提取失败".format(ts))
-            # 整理index_ts 排序 递增          index_ts: 本地所有ts列表 数字
-            index_ts.sort()
+            if ts_list:                 # 不为空列表
+                ts_local = []
+                for ts in ts_list:
+                    index = re.findall("(.*).ts", ts)[0]        # 使用ts变量，因为file就是ts文件
+                    index = index[-long:]
+                    # 去0 并 化为数字
+                    index = int(index)
+                    ts_local.append(index)
+            else:
+                ts_local = ts_list
+
+            # 整理index_ts 排序 递增          ts_local: 本地所有ts列表 数字
+            ts_local.sort()                 # 空列表不影响
             # 寻找离散的未下ts
-            for i in range(len(index_ts)-1):
-                i1 = index_ts[i]
-                i2 = index_ts[i+1]
+            for i in range(len(ts_local)-1):
+                i1 = ts_local[i]
+                i2 = ts_local[i+1]
                 if i == 0 and i1 != 0:                       # 比如只有第一个文件0未下的情况
                     lst = [a for a in range(i1)]
                     b = b + lst
                 elif i1+1 != i2:
                     lst = [a for a in range(i1+1, i2)]
                     b = b + lst
-        return index_ts, b
+        ts_dis = b
+        return ts_local, ts_dis
 
     else:
         file_list = os.listdir(path)
@@ -120,9 +124,9 @@ def send_requests(url, *, method="get", need="soup", mode="loop",
     if proxy is None:
         proxy = {}
 
-    # request增加代理设置 翻墙时候
-    opener = request.build_opener(request.ProxyHandler(proxy))
-    request.install_opener(opener)
+    # # request增加代理设置 翻墙时候
+    # opener = request.build_opener(request.ProxyHandler(proxy))
+    # request.install_opener(opener)
 
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:73.0) Gecko/20100101 Firefox/73.0',
@@ -136,6 +140,7 @@ def send_requests(url, *, method="get", need="soup", mode="loop",
                 response = requests.request(method, url, headers=headers, proxies=proxy, timeout=(13, 30))
                 response.close()
                 while response.status_code != 200:
+                    print(response.status_code)
                     print("\r再次尝试连接", end='')
                     response = requests.request(method, url, headers=headers, proxies=proxy, timeout=(13, 30))
                 break
