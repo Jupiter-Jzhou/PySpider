@@ -1,11 +1,12 @@
 import comunits
-import re
-from urllib import parse
+from re import X, findall, search
+from urllib.parse import urljoin, unquote
 from multiprocessing import Pool, freeze_support, Manager
 from lxml import etree
-import os
+from os import listdir, makedirs, system
+from os.path import join, exists
 from time import sleep
-from tqdm import tqdm
+
 
 # 网站主页
 url_home = "https://91mjw.com"
@@ -33,14 +34,14 @@ def get_info():
 
     # 美剧名
     name_section = tree.xpath('//h1[@class="article-title"]//text()')[0]
-    name_section = re.findall("《(.*)》", name_section)[0]
+    name_section = findall("《(.*)》", name_section)[0]
     # print(name_section)
 
     # 每集url线索,第几集
     id_epis = tree.xpath('//a[@onclick="play(this)"]/@id')
     key_epis = ["/vplay/" + i + ".html" for i in id_epis]
     name_epis = tree.xpath('//a[@onclick="play(this)"]/text()')
-    name_epis = [int(re.findall("第(.*)集", i)[0]) for i in name_epis]
+    name_epis = [int(findall("第(.*)集", i)[0]) for i in name_epis]
     # print(id_epis, name_epis, sep="\n")
     episode_dic_main = dict(zip(name_epis, key_epis))
 
@@ -53,7 +54,7 @@ def get_info():
 
     # 预处理字符串，后正则
     div = div.replace("</strong>", '').replace("<br/>", '')
-    info_section = re.findall("<strong>(.*)", div)
+    info_section = findall("<strong>(.*)", div)
     # for i in info_section:
     #     print(i)
 
@@ -72,18 +73,18 @@ def get_m3u8(url_play):
     obj = comunits.send_requests(url_play, referer=url_info, need="xpath")
     script = obj.xpath('//section[@class="container"]/script[@type="text/javascript"]/text()')[0]
     # 提取vid
-    vid = re.findall("vid.*?=(.*);", script)
+    vid = findall("vid.*?=(.*);", script)
     vid = vid[0].strip()
     vid = eval(vid).strip()
     # url解码
-    url_m3u8 = parse.unquote(vid)
+    url_m3u8 = unquote(vid)
 
     # 找到备用源和独家源的每集播放页的url
     play_container = obj.xpath('//div[@id="playcontainer"]//section')
     episode_dic_list = []                  # 其元素是每个源下的集数的字典{name:key}
     for s in play_container[1:]:
         name_epis = s.xpath('./a/text()')
-        name_epis = [int(re.findall("第(.*)集", i)[0]) for i in name_epis]
+        name_epis = [int(findall("第(.*)集", i)[0]) for i in name_epis]
         key_epis = s.xpath('./a/@href')
         episode_dic = dict(zip(name_epis, key_epis))
         episode_dic_list.append(episode_dic)
@@ -102,9 +103,9 @@ def get_ts(url_m3u8):
     m3u8 = m3u8.text
     print("第一个m3u8文件内容节选：", m3u8[:350], m3u8[-150:], sep='\n')
     if ".m3u8" in m3u8:  # 说明有两个m3u8
-        part = re.findall("\n(.+)m3u8", m3u8)
+        part = findall("\n(.+)m3u8", m3u8)
         m3u8b = part[0] + "m3u8"
-        url_m3u8b = parse.urljoin(url_m3u8, m3u8b)
+        url_m3u8b = urljoin(url_m3u8, m3u8b)
         ts = comunits.send_requests(url_m3u8b, origin=url_origin, need="response")
         ts = ts.text
         url_tspat = url_m3u8b
@@ -118,8 +119,8 @@ def get_ts(url_m3u8):
         # print("m3u8文件出现新特征，请修改代码")
 
     # 找头尾的两个ts
-    ts_start = re.search("(.*).ts", ts, re.X).group(1)  # re.X 忽略空格和#后的东西
-    ts_end = re.search("(.*).ts\n#EXT-X-ENDLIST", ts).group(1)
+    ts_start = search("(.*).ts", ts, X).group(1)  # X 忽略空格和#后的东西
+    ts_end = search("(.*).ts\n#EXT-X-ENDLIST", ts).group(1)
 
     # 找出ts是几位数的索引
     diff = 0
@@ -132,7 +133,7 @@ def get_ts(url_m3u8):
 
     # 制作ts模板
     ts_pat = ts_end[:diff] + "{0}.ts"
-    ts_pat = parse.urljoin(url_tspat, ts_pat)
+    ts_pat = urljoin(url_tspat, ts_pat)
     # ts总数
     ts_total = ts_end[diff:]
     ts_total = int(ts_total)
@@ -168,7 +169,7 @@ def get_download_console(ts_download, ts_pat, index_long, path_ts_dir):
             index = "0" * n + i
             url_ts = ts_pat.format(index)
             # ts文件路径
-            path_ts = os.path.join(path_ts_dir, url_ts.rsplit('/', 1)[1])
+            path_ts = join(path_ts_dir, url_ts.rsplit('/', 1)[1])
             # 开启异步任务
             pool.apply_async(download_ts, (url_ts, path_ts, d))
     finally:
@@ -178,17 +179,17 @@ def get_download_console(ts_download, ts_pat, index_long, path_ts_dir):
 
 def merge_ts(path_ts_dir, path_episode, ts_total, name_episode):
     # 判断ts文件是否下全了
-    if len(os.listdir(path_ts_dir)) == ts_total:
+    if len(listdir(path_ts_dir)) == ts_total:
         print("{1}开始合并：{0}{1}".format(name_episode, "*" * 25))
         # 合并ts
         merge = r'copy /b "{0}\*.ts" "{1}"'.format(path_ts_dir, path_episode)
-        os.system(merge)
-        if os.path.exists(path_episode):
+        system(merge)
+        if exists(path_episode):
             # 删除ts
             delete = r'rd /S/Q "{0}"'.format(path_ts_dir)
-            os.system(delete)
+            system(delete)
             sleep(0.5)  # 删除文件夹有一定时间
-            if not os.path.exists(path_ts_dir):
+            if not exists(path_ts_dir):
                 print("{1}合并成功：{0}{1}".format(name_episode, "*" * 25))
             else:
                 print("删除失败")
@@ -245,8 +246,7 @@ def main():
     # 从美剧详情页获取介绍和每集的url线索
     name_section, episode_dic_main, info_section, introduce = get_info()
     # 写美剧的介绍到txt文件
-    path_info = os.path.join(path_download, name_section, "美剧详情.txt")
-    print(info_section, introduce,sep='\n')
+    path_info = join(path_download, name_section, "美剧详情.txt")
     # 美剧详情写入本地txt文件
     with open(path_info, "w") as f:
         f.write("{0}\n".format("*"*80))
@@ -256,7 +256,7 @@ def main():
         f.write("\n")
         f.write("{0}剧情简介{0}".format("*"*35))
         f.write("\n"*2)
-        introduce = re.findall("(.{50})", introduce)
+        introduce = findall("(.{50})", introduce)
         for i in introduce:
             f.write(i)
             f.write("\n")
@@ -267,11 +267,11 @@ def main():
     # 每集循环下载
     for i in download_sets_list:  # i:第几集； 按用户输入的集数来下载
         name_episode = str(i) + "__" + name_section
-        path_ts_dir = os.path.join(path_download, name_section, name_episode)
+        path_ts_dir = join(path_download, name_section, name_episode)
         file_episode = name_episode + ".mp4"
-        path_episode = os.path.join(path_download, name_section, file_episode)
-        if not (os.path.exists(path_episode) or os.path.exists(path_ts_dir)):
-            os.makedirs(path_ts_dir)
+        path_episode = join(path_download, name_section, file_episode)
+        if not (exists(path_episode) or exists(path_ts_dir)):
+            makedirs(path_ts_dir)
 
         # 从详情页到播放页到第一个m3u8到..到ts
         print("{1}解析影片索引中：{0}{1}".format(name_episode, "*" * 25))
@@ -279,7 +279,7 @@ def main():
         flag_s = 0                                  # 换源头的标志位
         while 1:
             flag_s += 1
-            url_play = parse.urljoin(url_home, url_play_key)  # 播放页有详情页来，
+            url_play = urljoin(url_home, url_play_key)  # 播放页有详情页来，
             url_m3u8, episode_dic_list = get_m3u8(url_play)  # 返回第一个m3u8地址 和 每个源下的episode_dic
             ts_pat, ts_total, index_long = get_ts(url_m3u8)
             if ts_pat == "" and flag_s-1 < len(episode_dic_list):

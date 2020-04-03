@@ -1,12 +1,13 @@
-
-import requests
-import os
-import re
+from requests import request, Timeout
+from requests.exceptions import SSLError
+from os import listdir, makedirs
+from os.path import exists, isfile
+from re import findall
 from bs4 import BeautifulSoup
 from collections import Counter
-from time import sleep
+# from time import sleep
 from lxml import etree
-import urllib.request as request
+# import urllib.request as request
 
 
 def get_ip():
@@ -27,14 +28,14 @@ def check_local(path, *, mode=None, **kwargs):
         path_video = kwargs["path_episode"]           # 已经合成的影片名
         long = kwargs["index_long"]                   # ts文件索引长度 int
         b = []
-        if os.path.isfile(path_video):                     # 返回布尔值
+        if isfile(path_video):                     # 返回布尔值
             ts_local = False
         else:
-            ts_list = os.listdir(path)
+            ts_list = listdir(path)
             if ts_list:                 # 不为空列表
                 ts_local = []
                 for ts in ts_list:
-                    index = re.findall("(.*).ts", ts)[0]        # 使用ts变量，因为file就是ts文件
+                    index = findall("(.*).ts", ts)[0]        # 使用ts变量，因为file就是ts文件
                     index = index[-long:]
                     # 去0 并 化为数字
                     index = int(index)
@@ -58,7 +59,7 @@ def check_local(path, *, mode=None, **kwargs):
         return ts_local, ts_dis
 
     else:
-        file_list = os.listdir(path)
+        file_list = listdir(path)
         name_done = []                # 本地图集列表
         name_all = []
         pat = "L.jpg"
@@ -140,7 +141,7 @@ def send_requests(url, *, method="get", need="soup", mode="loop",
         while 1:
 
             try:
-                response = requests.request(method, url, headers=headers, proxies=proxy, timeout=timeout
+                response = request(method, url, headers=headers, proxies=proxy, timeout=timeout
                                             , verify=verify)
                 response.close()
                 if response.status_code != 200:
@@ -148,17 +149,17 @@ def send_requests(url, *, method="get", need="soup", mode="loop",
                     print("\r再次尝试连接", end='')
                     continue
                 break
-            except requests.Timeout:
+            except Timeout:
                 print("\r请求超时", end='')
                 timeout = (13, 60)
                 continue
-            except requests.exceptions.SSLError:
+            except SSLError:
                 print("\r关闭verify", end='')
                 verify = False
                 continue
 
     elif mode is "empty":
-        response = requests.request(method, url, headers=headers, proxies=proxy, timeout=(13, 30))
+        response = request(method, url, headers=headers, proxies=proxy, timeout=(13, 30))
         response.close()
 
     if need is "response":
@@ -217,7 +218,7 @@ def choice_path(path, path_default):
     # 判断存储地址
     if path is '':
         path = path_default
-    if not os.path.exists(path):
-        os.makedirs(path)
+    if not exists(path):
+        makedirs(path)
     return path
 
