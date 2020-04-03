@@ -5,6 +5,7 @@ from multiprocessing import Pool
 from lxml import etree
 import os
 from time import sleep
+from multiprocessing import freeze_support
 
 # 网站主页
 url_home = "https://91mjw.com"
@@ -266,7 +267,7 @@ def main():
             url_m3u8, episode_dic_list = get_m3u8(url_play)  # 返回第一个m3u8地址 和 每个源下的episode_dic
             ts_pat, ts_total, index_long = get_ts(url_m3u8)
             if ts_pat == "" and flag_s-1 < len(episode_dic_list):
-                print("第{0}次换源".format(flag_s-1))
+                print("第{0}次换源".format(flag_s))
                 url_play_key = episode_dic_list[flag_s-1][i]             # 备用源
                 continue
             else:
@@ -307,4 +308,6 @@ def main():
 
 
 if __name__ == '__main__':
+
+    freeze_support()      # 不然多进程打包出错
     main()
