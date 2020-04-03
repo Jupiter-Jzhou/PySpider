@@ -176,7 +176,6 @@ def get_download_console(ts_download, ts_pat, index_long, path_ts_dir):
         pool.join()
 
 
-
 def merge_ts(path_ts_dir, path_episode, ts_total, name_episode):
     # 判断ts文件是否下全了
     if len(os.listdir(path_ts_dir)) == ts_total:
@@ -245,9 +244,24 @@ def main():
     download_sets_list = get_ready()
     # 从美剧详情页获取介绍和每集的url线索
     name_section, episode_dic_main, info_section, introduce = get_info()
+    # 写美剧的介绍到txt文件
+    path_info = os.path.join(path_download, name_section, "美剧详情.txt")
+    print(info_section, introduce,sep='\n')
+    # 美剧详情写入本地txt文件
+    with open(path_info, "w") as f:
+        f.write("{0}\n".format("*"*80))
+        for i in info_section:
+            f.write(i)
+            f.write("\n")
+        f.write("\n")
+        f.write("{0}剧情简介{0}".format("*"*35))
+        f.write("\n"*2)
+        introduce = re.findall("(.{50})", introduce)
+        for i in introduce:
+            f.write(i)
+            f.write("\n")
+
     if not download_sets_list:
-        # download_sets_list = ["第" + "0" + str(i) + "集" if len(str(i)) == 1 else "第" + str(i) + "集"
-        #                       for i in range(1, len(episode_dic)+1)]
         download_sets_list = [i for i in range(1, len(episode_dic_main) + 1)]
 
     # 每集循环下载
