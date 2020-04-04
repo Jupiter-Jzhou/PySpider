@@ -141,8 +141,7 @@ def send_requests(url, *, method="get", need="soup", mode="loop",
         while 1:
 
             try:
-                response = request(method, url, headers=headers, proxies=proxy, timeout=timeout
-                                            , verify=verify)
+                response = request(method, url, headers=headers, proxies=proxy, timeout=timeout, verify=verify)
                 response.close()
                 if response.status_code != 200:
                     print(response.status_code)
