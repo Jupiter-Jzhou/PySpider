@@ -2,11 +2,10 @@
 import comunits
 import os
 
-proxy = {'https': 'https://127.0.0.1:10809'}
+proxy = {'https': 'https://127.0.0.1:25378'}
 url_ck = 'https://www.kindgirls.com/photo-archive'
 url_home = 'https://www.kindgirls.com/'
 path_default = "E:\\kindgirls"
-
 
 
 def get_pics(year, month):
@@ -18,7 +17,7 @@ def get_pics(year, month):
     url_month = url_ck + "/" + "?s={0}-{1}".format(month, year)
     href = []
     name = []
-    soup = comunits.send_requests(url_month, referer=url_ck, proxy=proxy)
+    soup = comunits.send_requests(url_month, referer=url_ck, proxy=proxy, need="soup")
     soup = soup.select(".gal_list a")
     for tag in soup:
         t = tag['href']
@@ -41,7 +40,7 @@ def start_download(local_dic, pics_dic, path_month):
         url_pics = pics_dic[pics]           # 准备下载图片的url
         num_start = local_dic[pics]
 
-        soup = comunits.send_requests(url_pics, referer=url_ck, proxy=proxy)
+        soup = comunits.send_requests(url_pics, referer=url_ck, proxy=proxy, need="soup")
         soup = soup.select(".gal_list a[target]")
         url_img_list = []
         for img in soup:
@@ -82,8 +81,8 @@ def main():
     if not os.path.exists(path):
         os.mkdir(path)
 
-    month_list = comunits.deal_input_num(month_list)    # 月份格式化处理
-
+    month_list = comunits.deal_input_num(month_list)    # 月份格式化处理, int
+    month_list = [str(i) for i in month_list]           # 为了统一，其他模块用int列表或许更好
     for month in month_list:    # 以月循环
         print("{2} 准备下载:{0}--{1} {2}".format(month, year, "*" * 35))
         if len(month) == 1:

@@ -15,7 +15,7 @@ def start_download(pics, url_pics, num_start, url_page, path_page):
     """
 
     # 从图集首页获取 图片总数
-    soup = comunits.send_requests(url_pics, referer=url_page)
+    soup = comunits.send_requests(url_pics, referer=url_page, need="soup")
     nums = soup.select('.pagenavi > a')[-2].text
     nums = int(nums)
     print("正在下载：{0}".format(pics))
@@ -35,7 +35,7 @@ def start_download(pics, url_pics, num_start, url_page, path_page):
                 referer_show = url_pics + '/' + str(num-1)
 
             # 获取图片下载地址
-            soup = comunits.send_requests(url_img_show, referer=referer_show)
+            soup = comunits.send_requests(url_img_show, referer=referer_show, need="soup")
             img = soup.select('.main-image>p>a>img')
             url_img = img[0].attrs['src']
 
@@ -68,7 +68,7 @@ def get_pics(page):
         referer_page = url_home + '/' + str(page - 1) + '/'
 
     # 返回 页所有图集的字典—— 名字：链接
-    soup = comunits.send_requests(url_page, referer=referer_page)
+    soup = comunits.send_requests(url_page, referer=referer_page, need="soup")
     items = soup.select('.postlist li')
     pics_dic = {}
     for item in items:
